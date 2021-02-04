@@ -6,6 +6,9 @@ pragma abicoder v2;
  * @dev Implement crowdfunding proposal
  * @author dStart
  */
+
+//import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+
 contract SimpleProposal {
 
     address constant dStarterToken = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
@@ -14,41 +17,53 @@ contract SimpleProposal {
 
     enum StatusInfos { inProgress, ended, rejected, rejectedByCreator }
 
+    event voteCast(Investor, uint[]);
+
     struct Proposal {
         address owner;
         string description;
         uint blockNumberStart;
         uint blockNumberEnd;
         uint goalAmount;
+        uint totalHarvest;
         address[] investorAddressList;
         bool privateSale;
         address[] privateSaleAddressList;
         StatusInfos status;
     }
 
+    struct Investor {
+        uint[] proposalInvestementNumber;
+        uint amountInvested;
+    }
+
     mapping(uint => Proposal) private simpleList;
     Proposal[] public simpleAllList;
-    
+
+    mapping(address => Investor) private investorList;
+
     function createProposal(
-        string memory _description, 
-        uint _blockNumberStart, 
-        uint _blockNumberEnd, 
+        string memory _description,
+        uint _blockNumberStart,
+        uint _blockNumberEnd,
         uint _goalAmount,
         bool _privateSale
     ) public returns (uint){
         uint proposalNumber = proposalTotalNumber;
+        uint emptyTotalHarvest = 0;
         address[] memory emptyInvestorAddressList;
         address[] memory emptyPrivateAddressList;
         Proposal memory _proposal = Proposal({
-            owner: msg.sender,
-            description: _description,
-            blockNumberStart: block.number,
-            blockNumberEnd: _blockNumberEnd,
-            goalAmount: _goalAmount, 
-            investorAddressList: emptyInvestorAddressList,
-            privateSale: _privateSale,
-            privateSaleAddressList: emptyPrivateAddressList,
-            status: STATUS_DEFAULT
+        owner: msg.sender,
+        description: _description,
+        blockNumberStart: _blockNumberStart < block.number ? block.number : _blockNumberStart,
+        blockNumberEnd: _blockNumberEnd,
+        goalAmount: _goalAmount,
+        totalHarvest: emptyTotalHarvest,
+        investorAddressList: emptyInvestorAddressList,
+        privateSale: _privateSale,
+        privateSaleAddressList: emptyPrivateAddressList,
+        status: STATUS_DEFAULT
         });
         require(
             bytes(_proposal.description).length <= 255,
@@ -67,7 +82,7 @@ contract SimpleProposal {
         proposalTotalNumber++;
         return proposalNumber;
     }
-    
+
     function addPrivateSaleAddress(uint proposalNumber, address[] memory privateSaleAddressList) public returns (Proposal[] memory){
         require(
             simpleList[proposalNumber].owner == msg.sender,
@@ -79,7 +94,7 @@ contract SimpleProposal {
         );
         simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
         simpleAllList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
-	return simpleAllList;
+        return simpleAllList;
     }
 
     function creatorRejectsTheProposal(uint proposalNumber) public {
@@ -90,14 +105,17 @@ contract SimpleProposal {
         simpleList[proposalNumber].status = StatusInfos.rejectedByCreator;
     }
 
-    function invest(uint proposalNumber, uint amount) view public {
-       require(
+    function invest(uint proposalNumber, uint amount) public {
+        simpleAllList[proposalNumber].investorAddressList[uint256(msg.sender)] == msg.sender;
+        investorList[msg.sender].proposalNumber == proposalNumber;
+        require(
             simpleList[proposalNumber].blockNumberEnd < block.number,
-            "Error - this proposal is ended""
-        ); 
+            "Error - this proposal is ended"
+        );
         require(
             simpleList[proposalNumber].status == StatusInfos.inProgress,
             "Error - impossible to invest"
         );
+        simpleList[proposalNumber].totalHarvest += amount;
     }
 }
