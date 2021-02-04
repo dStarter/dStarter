@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity >=0.7.0 <0.8.0;
+pragma abicoder v2;
 /*
  * @title Proposal
  * @dev Implement crowdfunding proposal
@@ -7,6 +8,7 @@ pragma solidity >=0.7.0 <0.8.0;
  */
 contract SimpleProposal {
 
+    address constant dStarterToken = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
     uint proposalTotalNumber;
 
@@ -18,39 +20,39 @@ contract SimpleProposal {
         uint blockNumberStart;
         uint blockNumberEnd;
         uint goalAmount;
-        address[] privateSaleAddressList;
         address[] investorAddressList;
+        bool privateSale;
+        address[] privateSaleAddressList;
         StatusInfos status;
     }
 
-    mapping(uint => Proposal) public simpleList;
-
+    mapping(uint => Proposal) private simpleList;
+    Proposal[] public simpleAllList;
+    
     function createProposal(
         string memory _description, 
         uint _blockNumberStart, 
         uint _blockNumberEnd, 
         uint _goalAmount,
-        address[] memory _privateSaleAddress
+        bool _privateSale
     ) public returns (uint){
         uint proposalNumber = proposalTotalNumber;
         address[] memory emptyInvestorAddressList;
+        address[] memory emptyPrivateAddressList;
         Proposal memory _proposal = Proposal({
             owner: msg.sender,
             description: _description,
-            blockNumberStart: _blockNumberStart,
+            blockNumberStart: block.number,
             blockNumberEnd: _blockNumberEnd,
             goalAmount: _goalAmount, 
-            privateSaleAddressList: _privateSaleAddress,
             investorAddressList: emptyInvestorAddressList,
+            privateSale: _privateSale,
+            privateSaleAddressList: emptyPrivateAddressList,
             status: STATUS_DEFAULT
         });
         require(
             bytes(_proposal.description).length <= 255,
-            "Error - The length of the description must be less than 255 characters!"
-        );
-        require(
-            _blockNumberStart >= block.number,
-            "Error - blockNumberStart must be greater than 0"
+            "Error - The length of the description must be less than 255 characters"
         );
         require(
             _blockNumberEnd > block.number,
@@ -60,10 +62,23 @@ contract SimpleProposal {
             _goalAmount > 0,
             "Error - goalAmount must be greater than 0"
         );
-        
         simpleList[proposalNumber] = _proposal;
+        simpleAllList.push(_proposal);
         proposalTotalNumber++;
-        return proposalNumber; 
+        return proposalNumber;
+    }
+    
+    function addPrivateSaleAddress(uint proposalNumber, address[] memory privateSaleAddressList) public returns (Proposal[] memory){
+        require(
+            simpleList[proposalNumber].owner == msg.sender,
+            "Error - not autorized "
+        );
+        require(
+            simpleList[proposalNumber].privateSale == true,
+            "Error - this proposal is not private"
+        );
+        simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
+        return simpleAllList;
     }
 
     function creatorRejectsTheProposal(uint proposalNumber) public {
@@ -74,7 +89,7 @@ contract SimpleProposal {
         simpleList[proposalNumber].status = StatusInfos.rejectedByCreator;
     }
 
-    function invest(uint proposalNumber) view public {
+    function invest(uint proposalNumber, uint amount) view public {
        require(
             simpleList[proposalNumber].blockNumberStart == 0,
             "Error - not exist "
@@ -85,4 +100,3 @@ contract SimpleProposal {
         );
     }
 }
-
