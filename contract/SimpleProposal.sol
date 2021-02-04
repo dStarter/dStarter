@@ -78,7 +78,8 @@ contract SimpleProposal {
             "Error - this proposal is not private"
         );
         simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
-        return simpleAllList;
+        simpleAllList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
+	return simpleAllList;
     }
 
     function creatorRejectsTheProposal(uint proposalNumber) public {
@@ -91,8 +92,8 @@ contract SimpleProposal {
 
     function invest(uint proposalNumber, uint amount) view public {
        require(
-            simpleList[proposalNumber].blockNumberStart == 0,
-            "Error - not exist "
+            simpleList[proposalNumber].blockNumberEnd < block.number,
+            "Error - this proposal is ended""
         ); 
         require(
             simpleList[proposalNumber].status == StatusInfos.inProgress,
