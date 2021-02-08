@@ -108,50 +108,30 @@ contract SimpleProposal {
     }
 
     function invest(
-        uint proposalNumber,
-        uint amount
-    ) public returns (Investment memory){
-        require(
-            allProposalsNumbers[proposalNumber] == proposalNumber,
-            "Error - this proposal doesn't exist"
-        );
-        require(
-            simpleList[proposalNumber].blockNumberEnd >= block.number,
-            "Error - this proposal is ended"
-        );
-        require(
-            simpleList[proposalNumber].status == StatusInfos.inProgress,
-            "Error - this proposal is ended"
-        );
+        uint proposalNumber
+    ) public payable returns (Investment memory){
+        require(allProposalsNumbers[proposalNumber] == proposalNumber, "Error - this proposal doesn't exist");
+
+        if (simpleList[proposalNumber].blockNumberEnd < block.number){
+            simpleList[proposalNumber].status = StatusInfos.ended;
+        }
+
+        require(simpleList[proposalNumber].status == StatusInfos.inProgress, "Error - this proposal is ended");
+        require(msg.value > 0, "Error - send some value to invest in this proposal");
+
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
-        simpleList[proposalNumber].totalHarvest += amount;
-        invests(proposalNumber, amount);
-        checkIfProposalHasAchievedItsGoal(proposalNumber);
-        return investmentList[msg.sender][proposalNumber];
-    }
+        simpleList[proposalNumber].totalHarvest += msg.value;
 
-    function checkIfProposalBlockEndIsBiggerThanBlockNumber() private {
-
-    }
-
-    function invests(
-        uint proposalNumber,
-        uint amount
-    ) private {
         if (investmentList[msg.sender][proposalNumber].proposalNumber == proposalNumber) {
-            investmentList[msg.sender][proposalNumber].amountInvested += amount;
+            investmentList[msg.sender][proposalNumber].amountInvested += msg.value;
         } else {
             Investment memory investment = Investment({
             proposalNumber: proposalNumber,
-            amountInvested: amount
+            amountInvested: msg.value
             });
             investmentList[msg.sender][proposalNumber] = investment;
         }
-    }
 
-    function checkIfProposalHasAchievedItsGoal(uint proposalNumber) private {
-        if  (simpleList[proposalNumber].totalHarvest >= simpleList[proposalNumber].goalAmount) {
-            simpleList[proposalNumber].status = StatusInfos.ended;
-        }
+        return investmentList[msg.sender][proposalNumber];
     }
 }
