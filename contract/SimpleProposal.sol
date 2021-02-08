@@ -64,9 +64,18 @@ contract SimpleProposal {
         privateSaleAddressList: emptyPrivateAddressList,
         status: STATUS_DEFAULT
         });
-        require(bytes(_proposal.description).length <= 255, "Error - The length of the description must be less than 255 characters");
-        require(_blockNumberEnd > block.number, "Error - blockNumberEnd must be greater than blockNumberStart");
-        require(_goalAmount > 0, "Error - goalAmount must be greater than 0");
+        require(
+            bytes(_proposal.description).length <= 255,
+            "Error - The length of the description must be less than 255 characters"
+        );
+        require(
+            _blockNumberEnd > block.number,
+            "Error - blockNumberEnd must be greater than blockNumberStart"
+        );
+        require(
+            _goalAmount > 0,
+            "Error - goalAmount must be greater than 0"
+        );
         simpleList[proposalNumber] = _proposal;
         allProposalsNumbers[proposalNumber] = proposalNumber;
         proposalTotalNumber++;
@@ -77,15 +86,24 @@ contract SimpleProposal {
         uint proposalNumber,
         address[] memory privateSaleAddressList
     ) public {
-        require(simpleList[proposalNumber].owner == msg.sender, "Error - not autorized ");
-        require(simpleList[proposalNumber].privateSale == true, "Error - this proposal is not private");
+        require(
+            simpleList[proposalNumber].owner == msg.sender,
+            "Error - not autorized "
+        );
+        require(
+            simpleList[proposalNumber].privateSale == true,
+            "Error - this proposal is not private"
+        );
         simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
     }
 
     function creatorRejectsTheProposal(
         uint proposalNumber
     ) public {
-        require(simpleList[proposalNumber].owner == msg.sender, "Error - not autorized ");
+        require(
+            simpleList[proposalNumber].owner == msg.sender,
+            "Error - not autorized "
+        );
         simpleList[proposalNumber].status = StatusInfos.rejectedByCreator;
     }
 
@@ -95,7 +113,11 @@ contract SimpleProposal {
         require(allProposalsNumbers[proposalNumber] == proposalNumber, "Error - this proposal doesn't exist");
 
         if (simpleList[proposalNumber].blockNumberEnd < block.number){
-            simpleList[proposalNumber].status = StatusInfos.ended;
+            if (simpleList[proposalNumber].totalHarvest < simpleList[proposalNumber].goalAmount) {
+                simpleList[proposalNumber].status = StatusInfos.rejected;
+            } else {
+                simpleList[proposalNumber].status = StatusInfos.ended;
+            }
         }
 
         require(simpleList[proposalNumber].status == StatusInfos.inProgress, "Error - this proposal is ended");
@@ -115,5 +137,25 @@ contract SimpleProposal {
         }
 
         return investmentList[msg.sender][proposalNumber];
+    }
+
+    function investorGetRefund(uint proposalNumber, uint amount) public {
+        checkIfProposalExistAndIfItsStatusIsInProgress(proposalNumber);
+    }
+
+    // Helper
+
+    function checkIfProposalExistAndIfItsStatusIsInProgress(uint proposalNumber) private {
+        require(allProposalsNumbers[proposalNumber] == proposalNumber, "Error - this proposal doesn't exist");
+
+        if (simpleList[proposalNumber].blockNumberEnd < block.number){
+            if (simpleList[proposalNumber].totalHarvest < simpleList[proposalNumber].goalAmount) {
+                simpleList[proposalNumber].status = StatusInfos.rejected;
+            } else {
+                simpleList[proposalNumber].status = StatusInfos.ended;
+            }
+        }
+
+        require(simpleList[proposalNumber].status == StatusInfos.inProgress, "Error - this proposal is ended");
     }
 }
