@@ -11,13 +11,12 @@ pragma abicoder v2;
 
 contract SimpleProposal {
 
+
     address constant dStarterToken = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
-    uint proposalTotalNumber;
+    uint proposalTotalNumber = 0;
 
     enum StatusInfos { inProgress, ended, rejected, rejectedByCreator }
-
-    event voteCast(Investor, uint[]);
 
     struct Proposal {
         address owner;
@@ -32,15 +31,15 @@ contract SimpleProposal {
         StatusInfos status;
     }
 
-    struct Investor {
-        uint[] proposalInvestementNumber;
+    struct Investment {
+        uint proposalNumber;
         uint amountInvested;
     }
 
     mapping(uint => Proposal) private simpleList;
-    Proposal[] public simpleAllList;
+    mapping(uint => uint) private allProposalsNumbers;
 
-    mapping(address => Investor) private investorList;
+    mapping(address => mapping(uint => Investment)) private investmentList;
 
     function createProposal(
         string memory _description,
@@ -78,12 +77,15 @@ contract SimpleProposal {
             "Error - goalAmount must be greater than 0"
         );
         simpleList[proposalNumber] = _proposal;
-        simpleAllList.push(_proposal);
+        allProposalsNumbers[proposalNumber] = proposalNumber;
         proposalTotalNumber++;
         return proposalNumber;
     }
 
-    function addPrivateSaleAddress(uint proposalNumber, address[] memory privateSaleAddressList) public returns (Proposal[] memory){
+    function addPrivateSaleAddress(
+        uint proposalNumber,
+        address[] memory privateSaleAddressList
+    ) public {
         require(
             simpleList[proposalNumber].owner == msg.sender,
             "Error - not autorized "
@@ -93,11 +95,11 @@ contract SimpleProposal {
             "Error - this proposal is not private"
         );
         simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
-        simpleAllList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
-        return simpleAllList;
     }
 
-    function creatorRejectsTheProposal(uint proposalNumber) public {
+    function creatorRejectsTheProposal(
+        uint proposalNumber
+    ) public {
         require(
             simpleList[proposalNumber].owner == msg.sender,
             "Error - not autorized "
@@ -105,17 +107,51 @@ contract SimpleProposal {
         simpleList[proposalNumber].status = StatusInfos.rejectedByCreator;
     }
 
-    function invest(uint proposalNumber, uint amount) public {
-        simpleAllList[proposalNumber].investorAddressList[uint256(msg.sender)] == msg.sender;
-        investorList[msg.sender].proposalNumber == proposalNumber;
+    function invest(
+        uint proposalNumber,
+        uint amount
+    ) public returns (Investment memory){
         require(
-            simpleList[proposalNumber].blockNumberEnd < block.number,
+            allProposalsNumbers[proposalNumber] == proposalNumber,
+            "Error - this proposal doesn't exist"
+        );
+        require(
+            simpleList[proposalNumber].blockNumberEnd >= block.number,
             "Error - this proposal is ended"
         );
         require(
             simpleList[proposalNumber].status == StatusInfos.inProgress,
-            "Error - impossible to invest"
+            "Error - this proposal is ended"
         );
+        simpleList[proposalNumber].investorAddressList.push(msg.sender);
         simpleList[proposalNumber].totalHarvest += amount;
+        invests(proposalNumber, amount);
+        checkIfProposalHasAchievedItsGoal(proposalNumber);
+        return investmentList[msg.sender][proposalNumber];
+    }
+
+    function checkIfProposalBlockEndIsBiggerThanBlockNumber() private {
+
+    }
+
+    function invests(
+        uint proposalNumber,
+        uint amount
+    ) private {
+        if (investmentList[msg.sender][proposalNumber].proposalNumber == proposalNumber) {
+            investmentList[msg.sender][proposalNumber].amountInvested += amount;
+        } else {
+            Investment memory investment = Investment({
+            proposalNumber: proposalNumber,
+            amountInvested: amount
+            });
+            investmentList[msg.sender][proposalNumber] = investment;
+        }
+    }
+
+    function checkIfProposalHasAchievedItsGoal(uint proposalNumber) private {
+        if  (simpleList[proposalNumber].totalHarvest >= simpleList[proposalNumber].goalAmount) {
+            simpleList[proposalNumber].status = StatusInfos.ended;
+        }
     }
 }
