@@ -7,8 +7,6 @@ pragma abicoder v2;
  * @author dStart
  */
 
-//import "openzeppelin-solidity/contracts/math/SafeMath.sol";
-
 contract SimpleProposal {
     address constant dStarterToken = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
@@ -138,17 +136,21 @@ contract SimpleProposal {
         _;
     }
 
-    function invest(uint proposalNumber)
-        public
-        payable
-        proposalExistAndIfItsStatusIsInProgress(proposalNumber)
-        returns (Investment memory)
-    {
+    modifier msgValueRequirement() {
         require(
             msg.value > 0,
             "Error - send some value to invest in this proposal"
         );
+        _;
+    }
 
+    function invest(uint proposalNumber)
+        public
+        payable
+        proposalExistAndIfItsStatusIsInProgress(proposalNumber)
+        msgValueRequirement()
+        returns (Investment memory)
+    {
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
         simpleList[proposalNumber].totalHarvest += msg.value;
 
@@ -186,6 +188,5 @@ contract SimpleProposal {
         } else {
             investmentList[msg.sender][proposalNumber].amountInvested -= amount;
         }
-
     }
 }
