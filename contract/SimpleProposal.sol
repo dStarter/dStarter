@@ -39,13 +39,29 @@ contract SimpleProposal {
 
     mapping(address => mapping(uint => Investment)) private investmentList;
 
-    function createProposal(
-        string memory _description,
-        uint _blockNumberStart,
-        uint _blockNumberEnd,
-        uint _goalAmount,
-        bool _privateSale
-    ) public proposalRequirement(_description, _blockNumberEnd, _goalAmount) returns (uint){
+    modifier createProposalRequirement(string memory _description, uint _blockNumberEnd, uint _goalAmount){
+        require(
+            bytes(_description).length <= 255,
+            "Error - The length of the description must be less than 255 characters"
+        );
+        _;
+        require(
+            _blockNumberEnd > block.number,
+            "Error - blockNumberEnd must be greater than block number"
+        );
+        _;
+        require(
+            _goalAmount > 0,
+            "Error - goalAmount must be greater than 0"
+        );
+        _;
+    }
+
+    function createProposal(string memory _description, uint _blockNumberStart, uint _blockNumberEnd,  uint _goalAmount, bool _privateSale)
+        public
+        createProposalRequirement(_description, _blockNumberEnd, _goalAmount)
+        returns (uint)
+    {
         uint proposalNumber = proposalTotalNumber;
         uint emptyTotalHarvest = 0;
         address[] memory emptyInvestorAddressList;
@@ -69,26 +85,70 @@ contract SimpleProposal {
         return proposalNumber;
     }
 
-    function addPrivateSaleAddress(
-        uint proposalNumber,
-        address[] memory privateSaleAddressList
-    ) public
-    onlyOwner(proposalNumber)
-    onlyPrivateSale(proposalNumber) {
+    modifier onlyOwner(uint proposalNumber) {
+        require(
+            simpleList[proposalNumber].owner == msg.sender,
+            "Error - not autorized "
+        );
+        _;
+    }
+
+    modifier onlyPrivateSale(uint proposalNumber) {
+        require(
+            simpleList[proposalNumber].privateSale == true,
+            "Error - this proposal is not private"
+        );
+        _;
+    }
+
+    function addPrivateSaleAddress(uint proposalNumber, address[] memory privateSaleAddressList)
+        public
+        onlyOwner(proposalNumber)
+        onlyPrivateSale(proposalNumber)
+    {
         simpleList[proposalNumber].privateSaleAddressList = privateSaleAddressList;
     }
 
-    function creatorRejectsTheProposal(
-        uint proposalNumber
-    ) public onlyOwner(proposalNumber){
+    function creatorRejectsTheProposal(uint proposalNumber)
+        public
+        onlyOwner(proposalNumber)
+    {
         simpleList[proposalNumber].status = StatusInfos.rejectedByCreator;
     }
 
-    function invest(
-        uint proposalNumber
-    ) public payable proposalExistAndIfItsStatusIsInProgress(proposalNumber)
-    returns (Investment memory){
-        require(msg.value > 0, "Error - send some value to invest in this proposal");
+    modifier proposalExistAndIfItsStatusIsInProgress(uint proposalNumber) {
+        require(
+            allProposalsNumbers[proposalNumber] == proposalNumber,
+            "Error - this proposal doesn't exist"
+        );
+        _;
+
+        if (simpleList[proposalNumber].blockNumberEnd < block.number){
+            if (simpleList[proposalNumber].totalHarvest < simpleList[proposalNumber].goalAmount) {
+                simpleList[proposalNumber].status = StatusInfos.rejected;
+            } else {
+                simpleList[proposalNumber].status = StatusInfos.ended;
+            }
+        }
+
+        require(
+            simpleList[proposalNumber].status == StatusInfos.inProgress,
+            "Error - this proposal is ended"
+        );
+        _;
+    }
+
+    function invest(uint proposalNumber)
+        public
+        payable
+        proposalExistAndIfItsStatusIsInProgress(proposalNumber)
+        returns (Investment memory)
+    {
+        require(
+            msg.value > 0,
+            "Error - send some value to invest in this proposal"
+        );
+
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
         simpleList[proposalNumber].totalHarvest += msg.value;
 
@@ -105,46 +165,27 @@ contract SimpleProposal {
         return investmentList[msg.sender][proposalNumber];
     }
 
-    function investorGetRefund(uint proposalNumber, uint amount) public proposalExistAndIfItsStatusIsInProgress(proposalNumber) {
-
-    }
-
-    // - Modifiers:
-
-    modifier proposalRequirement(
-        string memory _description,
-        uint _blockNumberEnd,
-        uint _goalAmount
-    ){
-        require(bytes(_description).length <= 255, "Error - The length of the description must be less than 255 characters");
-        _;
-        require(_blockNumberEnd > block.number, "Error - blockNumberEnd must be greater than block number");
-        _;
-        require(_goalAmount > 0, "Error - goalAmount must be greater than 0");
+    modifier refundRequirement(uint proposalNumber, uint amount) {
+        require(
+            amount > 0,
+            "Error - the amount must be greater than 0"
+        );
         _;
     }
 
-    modifier onlyOwner(uint proposalNumber) {
-        require(simpleList[proposalNumber].owner == msg.sender, "Error - not autorized ");
-        _;
-    }
+    function investorGetRefund(uint proposalNumber, uint amount)
+        public
+        proposalExistAndIfItsStatusIsInProgress(proposalNumber)
+        refundRequirement(proposalNumber, amount)
+    {
+        simpleList[proposalNumber].totalHarvest -= amount;
 
-    modifier onlyPrivateSale(uint proposalNumber) {
-        require(simpleList[proposalNumber].privateSale == true, "Error - this proposal is not private");
-        _;
-    }
-
-    modifier proposalExistAndIfItsStatusIsInProgress(uint proposalNumber) {
-        require(allProposalsNumbers[proposalNumber] == proposalNumber, "Error - this proposal doesn't exist");
-        _;
-        if (simpleList[proposalNumber].blockNumberEnd < block.number){
-            if (simpleList[proposalNumber].totalHarvest < simpleList[proposalNumber].goalAmount) {
-                simpleList[proposalNumber].status = StatusInfos.rejected;
-            } else {
-                simpleList[proposalNumber].status = StatusInfos.ended;
-            }
+        if (investmentList[msg.sender][proposalNumber].amountInvested >= amount) {
+            // remove address from simpleList[proposalNumber].investorAddressList
+            // remove investmentList[msg.sender][proposalNumber]
+        } else {
+            investmentList[msg.sender][proposalNumber].amountInvested -= amount;
         }
-        require(simpleList[proposalNumber].status == StatusInfos.inProgress, "Error - this proposal is ended");
-        _;
+
     }
 }
