@@ -8,7 +8,7 @@ pragma abicoder v2;
  */
 
 contract SimpleProposal {
-    address constant dStarterToken = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
+    address constant DSTARTER_TOKEN = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
     uint proposalTotalNumber = 0;
 
@@ -149,7 +149,7 @@ contract SimpleProposal {
         payable
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
         msgValueRequirement()
-        returns (Investment memory)
+        returns (uint)
     {
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
         simpleList[proposalNumber].totalHarvest += msg.value;
@@ -164,7 +164,7 @@ contract SimpleProposal {
             investmentList[msg.sender][proposalNumber] = investment;
         }
 
-        return investmentList[msg.sender][proposalNumber];
+        return 0xEd34EE41cA84042b619E9AEBF6175bB4a0069a05.balance;
     }
 
     modifier refundRequirement(uint proposalNumber, uint amount) {
@@ -173,20 +173,25 @@ contract SimpleProposal {
             "Error - the amount must be greater than 0"
         );
         _;
+        require(
+            amount > investmentList[msg.sender][proposalNumber].amountInvested,
+            "Error - the amount entered is greater than the amount invested");
+        _;
     }
 
     function investorGetRefund(uint proposalNumber, uint amount)
         public
+        payable
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
         refundRequirement(proposalNumber, amount)
     {
-        simpleList[proposalNumber].totalHarvest -= amount;
-
-        if (investmentList[msg.sender][proposalNumber].amountInvested >= amount) {
+        if (investmentList[msg.sender][proposalNumber].amountInvested == amount) {
             // remove address from simpleList[proposalNumber].investorAddressList
             // remove investmentList[msg.sender][proposalNumber]
         } else {
             investmentList[msg.sender][proposalNumber].amountInvested -= amount;
         }
+        msg.sender.transfer(amount);
+        simpleList[proposalNumber].totalHarvest -= amount;
     }
 }
