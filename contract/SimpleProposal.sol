@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: agpl-3.0
-pragma solidity >=0.7.0 <0.8.0;
-pragma abicoder v2;
+pragma solidity >=0.6.0 <0.8.0;
+
 /*
  * @title Proposal
  * @dev Implement crowdfunding proposal
  * @author dStart
  */
-
+import "./Erc20_dStarter.sol";
 contract SimpleProposal {
-    address constant DSTARTER_TOKEN = 0x7EF2e0048f5bAeDe046f6BF797943daF4ED8CB47;
+    Token dStarterToken = new Token(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4);
+
+    //address constant DSTARTER_TOKEN = 0xf8e81D47203A594245E36C48e151709F0C19fBe8;
+
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
     uint proposalTotalNumber = 0;
 
@@ -36,6 +39,7 @@ contract SimpleProposal {
     mapping(uint => uint) private allProposalsNumbers;
 
     mapping(address => mapping(uint => Investment)) private investmentList;
+
 
     modifier createProposalRequirement(string memory _description, uint _blockNumberEnd, uint _goalAmount){
         require(
@@ -136,35 +140,48 @@ contract SimpleProposal {
         _;
     }
 
-    modifier msgValueRequirement() {
-        require(
-            msg.value > 0,
-            "Error - send some value to invest in this proposal"
-        );
+    modifier checkBalance(address sender, uint amount) {
+        require(dStarterToken.balanceOf(sender) >= amount, "Error: the amount is greater than your balance");
         _;
+
+        if (dStarterToken.allowance(sender, address(this)) >= amount) {
+            require(dStarterToken.approve(address(this), amount), "Error: You have to approve the spend");
+            dStarterToken.transferFrom(sender, address(this), amount);
+        }
+        _;
+        /*
+            TODO: check we can spend the sender money with allowance
+        */
+
+        /*
+            TODO: if allowance return 0 or (amount > alowance) call the function approve in erc20 smart contract
+        */
     }
 
-    function invest(uint proposalNumber)
+    function approveAllowance() private {
+
+    }
+
+    function invest(uint proposalNumber, uint amount)
         public
-        payable
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
-        msgValueRequirement()
-        returns (uint)
+        checkBalance(msg.sender, amount)
+    returns (uint)
     {
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
-        simpleList[proposalNumber].totalHarvest += msg.value;
+        simpleList[proposalNumber].totalHarvest += amount;
 
         if (investmentList[msg.sender][proposalNumber].proposalNumber == proposalNumber) {
-            investmentList[msg.sender][proposalNumber].amountInvested += msg.value;
+            investmentList[msg.sender][proposalNumber].amountInvested += amount;
         } else {
             Investment memory investment = Investment({
             proposalNumber: proposalNumber,
-            amountInvested: msg.value
+            amountInvested: amount
             });
             investmentList[msg.sender][proposalNumber] = investment;
         }
-
-        return 0xEd34EE41cA84042b619E9AEBF6175bB4a0069a05.balance;
+        //msg.sender.transfer(msg.value);
+        return address(this).balance;
     }
 
     modifier refundRequirement(uint proposalNumber, uint amount) {
@@ -173,10 +190,10 @@ contract SimpleProposal {
             "Error - the amount must be greater than 0"
         );
         _;
-        require(
-            amount > investmentList[msg.sender][proposalNumber].amountInvested,
-            "Error - the amount entered is greater than the amount invested");
-        _;
+        //require(
+        // amount > investmentList[msg.sender][proposalNumber].amountInvested,
+        //"Error - the amount entered is greater than the amount invested");
+        //_;
     }
 
     function investorGetRefund(uint proposalNumber, uint amount)
@@ -184,6 +201,7 @@ contract SimpleProposal {
         payable
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
         refundRequirement(proposalNumber, amount)
+        returns (uint)
     {
         if (investmentList[msg.sender][proposalNumber].amountInvested == amount) {
             // remove address from simpleList[proposalNumber].investorAddressList
@@ -193,5 +211,6 @@ contract SimpleProposal {
         }
         msg.sender.transfer(amount);
         simpleList[proposalNumber].totalHarvest -= amount;
+        return address(this).balance;
     }
 }
