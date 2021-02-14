@@ -67,16 +67,16 @@ contract SimpleProposal {
         address[] memory emptyInvestorAddressList;
         address[] memory emptyPrivateAddressList;
         Proposal memory _proposal = Proposal({
-        owner: msg.sender,
-        description: _description,
-        blockNumberStart: _blockNumberStart < block.number ? block.number : _blockNumberStart,
-        blockNumberEnd: _blockNumberEnd,
-        goalAmount: _goalAmount,
-        totalHarvest: emptyTotalHarvest,
-        investorAddressList: emptyInvestorAddressList,
-        privateSale: _privateSale,
-        privateSaleAddressList: emptyPrivateAddressList,
-        status: STATUS_DEFAULT
+            owner: msg.sender,
+            description: _description,
+            blockNumberStart: _blockNumberStart < block.number ? block.number : _blockNumberStart,
+            blockNumberEnd: _blockNumberEnd,
+            goalAmount: _goalAmount,
+            totalHarvest: emptyTotalHarvest,
+            investorAddressList: emptyInvestorAddressList,
+            privateSale: _privateSale,
+            privateSaleAddressList: emptyPrivateAddressList,
+            status: STATUS_DEFAULT
         });
 
         simpleList[proposalNumber] = _proposal;
@@ -138,12 +138,15 @@ contract SimpleProposal {
         _;
     }
 
-    modifier checkBalanceAndAllowance(address sender, uint amount) {
+    modifier checkBalance(address sender, uint amount) {
         require(
             dStarterToken.balanceOf(sender) >= amount,
             "Error: the amount is greater than your balance"
         );
         _;
+    }
+
+    modifier checkAllowance(address sender, uint amount) {
         require(
             dStarterToken.allowance(sender, address(this)) < amount,
             "Error: You have to approve the spender"
@@ -159,7 +162,8 @@ contract SimpleProposal {
     function invest(uint proposalNumber, uint amount)
         public
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
-        checkBalanceAndAllowance(msg.sender, amount)
+        checkBalance(msg.sender, amount)
+        checkAllowance(msg.sender, amount)
         returns (uint)
     {
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
@@ -169,8 +173,8 @@ contract SimpleProposal {
             investmentList[msg.sender][proposalNumber].amountInvested += amount;
         } else {
             Investment memory investment = Investment({
-            proposalNumber: proposalNumber,
-            amountInvested: amount
+                proposalNumber: proposalNumber,
+                amountInvested: amount
             });
             investmentList[msg.sender][proposalNumber] = investment;
         }
@@ -184,18 +188,16 @@ contract SimpleProposal {
             "Error - the amount must be greater than 0"
         );
         _;
-        //require(
-        // amount > investmentList[msg.sender][proposalNumber].amountInvested,
-        //"Error - the amount entered is greater than the amount invested");
-        //_;
+        require(
+            investmentList[msg.sender][proposalNumber].amountInvested >= amount,
+            "Error - the amount entered is greater than the amount invested");
+        _;
     }
 
     function investorGetRefund(uint proposalNumber, uint amount)
         public
-        payable
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
         refundRequirement(proposalNumber, amount)
-        returns (uint)
     {
         if (investmentList[msg.sender][proposalNumber].amountInvested == amount) {
             // remove address from simpleList[proposalNumber].investorAddressList
@@ -203,8 +205,7 @@ contract SimpleProposal {
         } else {
             investmentList[msg.sender][proposalNumber].amountInvested -= amount;
         }
-        msg.sender.transfer(amount);
+        dStarterToken.transferFrom(address(this), msg.sender, amount);
         simpleList[proposalNumber].totalHarvest -= amount;
-        return address(this).balance;
     }
 }
