@@ -9,9 +9,6 @@ pragma solidity >=0.6.0 <0.8.0;
 import "./Erc20_dStarter.sol";
 contract SimpleProposal {
     Token dStarterToken = new Token(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4);
-
-    //address constant DSTARTER_TOKEN = 0xf8e81D47203A594245E36C48e151709F0C19fBe8;
-
     StatusInfos constant STATUS_DEFAULT = StatusInfos.inProgress;
     uint proposalTotalNumber = 0;
 
@@ -40,6 +37,7 @@ contract SimpleProposal {
 
     mapping(address => mapping(uint => Investment)) private investmentList;
 
+    event Approval(address sender, address spender, bool approveState);
 
     modifier createProposalRequirement(string memory _description, uint _blockNumberEnd, uint _goalAmount){
         require(
@@ -140,33 +138,29 @@ contract SimpleProposal {
         _;
     }
 
-    modifier checkBalance(address sender, uint amount) {
-        require(dStarterToken.balanceOf(sender) >= amount, "Error: the amount is greater than your balance");
+    modifier checkBalanceAndAllowance(address sender, uint amount) {
+        require(
+            dStarterToken.balanceOf(sender) >= amount,
+            "Error: the amount is greater than your balance"
+        );
         _;
-
-        if (dStarterToken.allowance(sender, address(this)) >= amount) {
-            require(dStarterToken.approve(address(this), amount), "Error: You have to approve the spend");
-            dStarterToken.transferFrom(sender, address(this), amount);
-        }
+        require(
+            dStarterToken.allowance(sender, address(this)) < amount,
+            "Error: You have to approve the spender"
+        );
         _;
-        /*
-            TODO: check we can spend the sender money with allowance
-        */
-
-        /*
-            TODO: if allowance return 0 or (amount > alowance) call the function approve in erc20 smart contract
-        */
     }
 
-    function approveAllowance() private {
-
+    function approveAmount(uint256 amount) public {
+        dStarterToken.approve(address(this), amount);
+        emit Approval(msg.sender, address(this), dStarterToken.approve(address(this), amount));
     }
 
     function invest(uint proposalNumber, uint amount)
         public
         proposalExistAndIfItsStatusIsInProgress(proposalNumber)
-        checkBalance(msg.sender, amount)
-    returns (uint)
+        checkBalanceAndAllowance(msg.sender, amount)
+        returns (uint)
     {
         simpleList[proposalNumber].investorAddressList.push(msg.sender);
         simpleList[proposalNumber].totalHarvest += amount;
@@ -180,7 +174,7 @@ contract SimpleProposal {
             });
             investmentList[msg.sender][proposalNumber] = investment;
         }
-        //msg.sender.transfer(msg.value);
+        dStarterToken.transferFrom(msg.sender, address(this), amount);
         return address(this).balance;
     }
 
